@@ -6,56 +6,79 @@ export class Start extends Phaser.Scene {
     }
 
     preload() {
-        this.load.image('logo', 'assets/phaser.png');
-        document.fonts.load('24px MicroFont');
-        document.fonts.load('24px QuicksandFont');
-        //this.load.bitmapFont('microbm', 'fonts/microbm.png', 'fonts/microbm.fnt');
+        this.load.image('start_bg', 'assets/start_bg.png');
     }
 
     create() {
-        
+        const { width, height } = this.scale;
         const centerX = this.cameras.main.centerX;
         const centerY = this.cameras.main.centerY;
 
-        document.fonts.ready.then(() => 
-        {
-            this.add.text(centerX, centerY, 'Welcome to Fishing Game', { 
-                fontSize: '32px', 
-                color: '#ffffff',
-                fontFamily:'QuicksandFont', 
-                }).setOrigin(0.5);
+        const padding = 40;
+        const buttonGap = 30;
 
-            const fishingBtn = this.add.text(centerX, centerY + 40, 'Choose Location', { 
-                fontSize: '28px', 
-                color: '#00ff00', 
-                backgroundColor: '#000000',
-                fontFamily:'MicroFont', 
-                padding: { x: 10, y: 5 } 
-                }).setOrigin(0.5).setInteractive();
+        const bg = this.add.image(0, 0, 'start_bg')
+            .setOrigin(0,0)
+            .setDisplaySize(width,height)
+            .setDepth(-1);
+        
+        const username = gameState?.user?.username || 'Fisher';
 
-            fishingBtn.on('pointerdown', () => {
-                this.scene.start('Locations');
-            });
+        this.add.text(centerX, padding, `Welcome, ${username}`, { 
+            fontSize: '32px', 
+            color: '#ffffff',
+            //fontFamily:'MicroFont', 
+            }).setOrigin(0.5);
 
-            const inventoryButton = this.add.text(centerX, centerY + 80, 'Inventory', {
-                fontSize: '32px', 
-                color: '#00ffff', 
-                backgroundColor: '#000000', 
-                fontFamily:'MicroFont',
-                padding: { x: 10, y: 5 } 
-                }).setOrigin(0.5).setInteractive();
+        const fishingBtn = this.add.text(centerX, height - buttonGap * 4, 'Choose Location', { 
+            fontSize: '24px', 
+            color: '##648f5d', 
+            //backgroundColor: '#000000',
+            //fontFamily:'MicroFont', 
+            padding: { x: 10, y: 5 } 
+            }).setOrigin(0.5).setInteractive();
 
-            inventoryButton.on('pointerdown', () => {
-                this.scene.start('Inventory');
-            });
-
-            const aquariumBtn = this.add.text(centerX, centerY + 120, 'Go to Aquarium', { fontSize: '32px', color: '#00ffff', backgroundColor: '#000000', padding: { x: 10, y: 5 } })
-                .setOrigin(0.5)
-                .setInteractive();
-
-            aquariumBtn.on('pointerdown', () => {
-                this.scene.start('Aquarium');
-            });
+        fishingBtn.on('pointerdown', () => {
+            this.scene.start('Locations');
         });
+
+        const inventoryButton = this.add.text(centerX, height - buttonGap * 3, 'Inventory', {
+            fontSize: '24px', 
+            color: '#d4a53f', 
+            //backgroundColor: '#000000', 
+            //fontFamily:'MicroFont',
+            padding: { x: 10, y: 5 } 
+            }).setOrigin(0.5).setInteractive();
+
+        inventoryButton.on('pointerdown', () => {
+            this.scene.start('Inventory');
+        });
+
+        const aquariumBtn = this.add.text(centerX, height - buttonGap * 2, 'Go to Aquarium', { 
+            fontSize: '24px', 
+            color: '#00ffff', 
+            //backgroundColor: '#000000',
+            //fontFamily:'MicroFont', 
+            padding: { x: 10, y: 5 } })
+            .setOrigin(0.5)
+            .setInteractive();
+
+        aquariumBtn.on('pointerdown', () => {
+            this.scene.start('Aquarium');
+        });
+
+        const profileButton = this.add.text(centerX, height - buttonGap, 'User Profile', { 
+            fontSize: '24px', 
+            color: '#e26245', 
+            //backgroundColor: '#000000',
+            //fontFamily:'MicroFont', 
+            padding: { x: 10, y: 5 } })
+            .setOrigin(0.5)
+            .setInteractive();
+
+        profileButton.on('pointerdown', () => {
+            this.scene.start('Profile');
+        });
+        
     }
 }

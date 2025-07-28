@@ -1,16 +1,19 @@
 import { fishingLocations } from '../constants/locations.js';
 import { gameState } from '../constants/gameState.js';
 import { auth, db } from '../constants/firebase.js';
-import { getRandomFishType } from '../utilities/fishUtilities.js';
+import { getRandomFishType,fishProfiles } from '../utilities/fishUtilities.js';
 
 function saveGameState(gameState) {
         const uid = auth.currentUser?.uid;
         if (!uid) return;
 
         db.collection('saves').doc(uid).set({
+            user: gameState.user,
             xp: gameState.xp,
+            level:gameState.level,
             fish: gameState.caughtFish,
             fishCounter:gameState.fishCounter,
+            gold:gameState.gold,
             timestamp: Date.now()
         });
 }
@@ -36,90 +39,53 @@ export class Fishing extends Phaser.Scene {
 
     preload() 
     {
-        this.load.image('background', 'assets/space.png');
-        this.load.image('logo', 'assets/phaser.png');
-        this.load.spritesheet('ship', 'assets/spaceship.png', { frameWidth: 176, frameHeight: 96 });        
+
     }
 
     create() 
     {
         //Background color
-        this.add.rectangle(640, 360, 1280, 720, this.location.color); // location-based background
+        const { width, height } = this.scale;
+        this.add.rectangle(width /2 , height / 2, width, height, this.location.color); // location-based background
         this.add.text(640, 40, this.location.name, { fontSize: '28px', color: '#ffffff' }).setOrigin(0.5);
-        
+
+        // Add player (placeholder square)
+        this.player = this.add.rectangle(640, 400, 40, 40, 0xffffff);
+        this.physics.add.existing(this.player);
+        this.player.body.setCollideWorldBounds(true);
+
+        // Input
+        this.cursors = this.input.keyboard.createCursorKeys();
+        this.spacebar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+
+        // Text: "Press Spacebar to go fishing!"
+        this.add.text(50, 50, 'Press Spacebar to go fishing!', {
+            fontSize: '20px',
+            color: '#dddddd'
+        });
+
+        // Back button
+        const backButton = this.add.text(640, 680, 'Back to Start', {
+            fontSize: '20px',
+            color: '#ffffff',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 }
+        }).setOrigin(0.5).setInteractive();
+
+        backButton.on('pointerdown', () => {
+            this.scene.start('Start');
+        });
+
+        // Circle mini-game setup
+        this.circleClickCount = 0;
+        this.targetCircleClicks = Phaser.Math.Between(2, 4);
+        this.isFishing = false;
+        this.fishingCircles = [];
+
         const centerX = this.cameras.main.centerX;
         const centerY = this.cameras.main.centerY;
 
-        //generate fish button
-        const testButton = this.add.text(centerX,centerY,'Catch Fish').setOrigin(0.5).setInteractive();
-        testButton.on(
-            "pointerdown",
-            (pointer,localX,localY,event) =>
-            {
-                //Remove previously destroyed fish
-                this.spawnedFish.forEach(fish => fish.destroy());
-                this.spawnedFish = [];
-
-                //xp earned
-                let xpEarned = 0;
-
-                //generate a fish
-                const fishType = getRandomFishType(this.location.fishTable);
-                const fishKey = `fish_${gameState.fishCounter++}`;
-
-                //Store metadata
-                const fishData = this.generateFishSprite(fishKey);
-                fishData.fishType = fishType;
-                //gameState.addFish(fishData);
-
-                // Give XP
-                const gainedXP = Phaser.Math.Between(5, 10);
-                gameState.addXP(gainedXP); 
-                xpEarned += gainedXP;     
-
-                //save gamestate
-                //saveGameState(gameState);
-
-                //display stuff
-                this.showCatchPopup(fishData,fishKey,fishType,gainedXP);
-            });
-
-        //Inventory button
-        const inventoryButton = this.add.text(centerX, centerY + 220, 'Inventory', {
-            fontSize: '24px',
-            color: '#ffffff',
-            backgroundColor: '#000000',
-            padding: { x: 10, y: 5 }
-        }).setOrigin(0.5).setInteractive();
-
-        inventoryButton.on('pointerdown', () => {
-            this.scene.start('Inventory');
-        });
-
-
-        //aquarium button
-        const aquariumButton = this.add.text(centerX, centerY + 260, 'Go to Aquarium', {
-            fontSize: '24px',
-            color: '#ffffff',
-            backgroundColor: '#000000',
-            padding: { x: 10, y: 5 }
-        }).setOrigin(0.5).setInteractive();
-
-        aquariumButton.on('pointerdown', () => {
-            this.scene.start('Aquarium');
-        });
-
-        //Profile button
-        const profileButton = this.add.text(centerX, centerY + 300, 'Profile', {
-            fontSize: '24px',
-            color: '#ff0000',
-            backgroundColor: '#000000',
-        }).setOrigin(0.5).setInteractive();
-
-        profileButton.on('pointerdown', () => {
-            this.scene.start('Profile');
-        });
-
+        
         this.scale.on('resize', (gameSize) => {
             const width = gameSize.width;
             const height = gameSize.height;
@@ -127,10 +93,35 @@ export class Fishing extends Phaser.Scene {
             });
     }
 
-    generateFishSprite(key)
+    update() {
+        if (!this.player || !this.cursors) return;
+
+        const speed = 200;
+        const body = this.player.body;
+
+        body.setVelocity(0);
+
+        if (this.cursors.left.isDown) body.setVelocityX(-speed);
+        if (this.cursors.right.isDown) body.setVelocityX(speed);
+        if (this.cursors.up.isDown) body.setVelocityY(-speed);
+        if (this.cursors.down.isDown) body.setVelocityY(speed);
+
+        if (Phaser.Input.Keyboard.JustDown(this.spacebar) && !this.isFishing) {
+            this.startFishingMiniGame();
+        }
+    }
+
+    generateFishSprite(key, fishType)
     {
-        const width = Phaser.Math.Between(64,96);
-        const height = Phaser.Math.Between(32, 64);
+        const profile = fishProfiles[fishType] || {
+            baseColor: Phaser.Display.Color.RandomRGB(),
+            tailColor: Phaser.Display.Color.RandomRGB(),
+            allowStripes: true,
+            sizeRange: { width: [64, 96], height: [32, 64] }
+        };
+
+        const width = Phaser.Math.Between(...profile.sizeRange.width);
+        const height = Phaser.Math.Between(...profile.sizeRange.height);
 
         // Create canvas texture
         if (this.textures.exists(key)) this.textures.remove(key);
@@ -138,14 +129,12 @@ export class Fishing extends Phaser.Scene {
         const ctx = canvasTexture.getContext();
 
         //Base body color
-        const tBColor = Phaser.Display.Color.RandomRGB();
-        const bodyColor = { r: tBColor.r, g: tBColor.g, b: tBColor.b };
+        const bodyColor = profile.baseColor;
         ctx.fillStyle = `rgb(${bodyColor.r}, ${bodyColor.g}, ${bodyColor.b})`;
         ctx.fillRect(0, height / 4, width, height / 2);
 
         // Tail (triangle shape)
-        const tTColor = Phaser.Display.Color.RandomRGB();
-        const tailColor = { r: tTColor.r, g: tTColor.g, b: tTColor.b };
+        const tailColor = profile.tailColor;
         const tailWidth = width / 4;
         ctx.fillStyle = `rgb(${tailColor.r}, ${tailColor.g}, ${tailColor.b})`;
         ctx.beginPath();
@@ -163,10 +152,9 @@ export class Fishing extends Phaser.Scene {
         let hasStripes = false;
         let stripeColor = null;
         let stripePositions = [];
-        if (Math.random() > 0.5) {
+        if (profile.allowStripes && Math.random() > 0.4) {
             hasStripes = true;
-            const tSColor = Phaser.Display.Color.RandomRGB();
-            stripeColor = {r:tSColor.r,g:tSColor.g, b: tSColor.b};
+            stripeColor = profile.stripeColor || Phaser.Display.Color.RandomRGB();
             ctx.fillStyle = `rgb(${stripeColor.r}, ${stripeColor.g}, ${stripeColor.b})`;
             for (let i = 0; i < 3; i++) {
                 const stripeX = Phaser.Math.Between(tailWidth + 2, width - 10);
@@ -182,15 +170,38 @@ export class Fishing extends Phaser.Scene {
             key,
             width,
             height,
+            fishType,
             bodyColor,
             tailColor,
             hasStripes,
-            stripeColor: hasStripes ? stripeColor: null,
-            stripePositions 
+            stripeColor,
+            stripePositions,
+            timestamp: Date.now() 
             };
     }
 
-    showCatchPopup(fishData, fishKey, fishType, gainedXP) 
+    catchFish() {
+        // Remove old fish graphics if any
+        this.spawnedFish.forEach(fish => fish.destroy());
+        this.spawnedFish = [];
+
+        const fishType = getRandomFishType(this.location.fishTable);
+        const fishKey = `fish_${gameState.fishCounter++}`;
+
+        const fishData = this.generateFishSprite(fishKey, fishType);
+        fishData.fishType = fishType;
+
+        const gainedXP = Phaser.Math.Between(5, 10);
+        const baseGold = fishProfiles[fishType]?.baseGold || 10;
+        const goldEarned = Phaser.Math.Between(baseGold - 5, baseGold + 5);
+        gameState.addXP(gainedXP);
+        gameState.addGold(goldEarned);
+
+        this.showCatchPopup(fishData, fishKey, fishType, gainedXP, goldEarned);
+    }
+
+
+    showCatchPopup(fishData, fishKey, fishType, gainedXP,goldEarned) 
     {
         const centerX = this.cameras.main.centerX;
         const centerY = this.cameras.main.centerY;
@@ -203,6 +214,7 @@ export class Fishing extends Phaser.Scene {
         const message = this.add.text(centerX, centerY - 200,
             `🎉 CONGRATULATIONS! 🎉\nYou caught a ${fishData.fishType}!`, {
             fontSize: '32px',
+            //fontFamily:'MicroFont', 
             color: '#ffffff',
             align: 'center'
         }).setOrigin(0.5).setDepth(101);
@@ -212,9 +224,16 @@ export class Fishing extends Phaser.Scene {
             .setScale(2)
             .setDepth(101);
 
+        // Gold earned text
+        const goldText = this.add.text(centerX, centerY + 20, `💰 +${goldEarned} gold`, {
+            fontSize: '20px',
+            color: '#ffff00'
+        }).setOrigin(0.5).setDepth(101);
+
         // Input label
         const nameLabel = this.add.text(centerX - 150, centerY + 80, 'Name your fish:', {
             fontSize: '20px',
+            //fontFamily:'MicroFont', 
             color: '#ffffff'
         }).setOrigin(0, 0.5).setDepth(101);
 
@@ -222,7 +241,8 @@ export class Fishing extends Phaser.Scene {
         const nameInput = this.add.dom(centerX + 80, centerY + 80, 'input', {
             type: 'text',
             width: '200px',
-            fontSize: '16px'
+            fontSize: '16px',
+            fontFamily:'MicroFont'
         });
         nameInput.setDepth(101);
         nameInput.node.value = fishData.fishType;
@@ -230,6 +250,7 @@ export class Fishing extends Phaser.Scene {
         // OK button
         const okButton = this.add.text(centerX, centerY + 150, 'OK', {
             fontSize: '24px',
+            //fontFamily:'MicroFont', 
             color: '#ffffff',
             backgroundColor: '#000000',
             padding: { x: 15, y: 8 }
@@ -262,8 +283,62 @@ export class Fishing extends Phaser.Scene {
             nameLabel.destroy();
             nameInput.destroy();
             okButton.destroy();
+            goldText.destroy();
+
+            this.isFishing = false;
         });
     }
+
+    //Fishing mini-game methods
+    startFishingMiniGame() {
+        this.isFishing = true;
+        this.circleClickCount = 0;
+        this.targetCircleClicks = Phaser.Math.Between(2, 4);
+
+        // Create semi-transparent background overlay
+        this.fishingOverlay = this.add.rectangle(
+            this.cameras.main.centerX,
+            this.cameras.main.centerY,
+            1280, 720,
+            0x000000, 0.7
+        ).setDepth(50);
+
+        this.fishingCircles = []; // Clear old array
+        this.spawnNextCircle();
+    }
+
+    spawnNextCircle() {
+        const x = Phaser.Math.Between(100, 1180);
+        const y = Phaser.Math.Between(100, 600);
+        const circle = this.add.circle(x, y, 30, 0xff0000)
+        .setInteractive()
+        .setDepth(51); //above the overlay
+
+        circle.on('pointerdown', () => {
+            circle.destroy();
+            this.circleClickCount++;
+
+            if (this.circleClickCount >= this.targetCircleClicks) {
+                this.endFishingMiniGame();
+                this.catchFish();
+            } else {
+                this.spawnNextCircle();
+            }
+        });
+
+        this.fishingCircles.push(circle);
+    }
+
+    endFishingMiniGame() {
+        if (this.fishingOverlay) {
+            this.fishingOverlay.destroy();
+            this.fishingOverlay = null;
+        }
+
+        this.fishingCircles.forEach(circle => circle.destroy());
+        this.fishingCircles = [];
+    }
+
 
 
     

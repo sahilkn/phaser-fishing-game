@@ -15,10 +15,17 @@ function loadGameState() {
             .then(doc => {
                 if (doc.exists) {
                     const data = doc.data();
+                    // Safely preserve the structure
+                    gameState.user.uid = uid;
+                    gameState.user.email = auth.currentUser?.email || null;
+                    gameState.user.username = data.user?.username || gameState.user.username;
+
                     gameState.xp = data.xp ?? 0;
+                    gameState.level = data.level ?? 1;
                     gameState.caughtFish = data.fish ?? [];
                     gameState.fishCounter = data.fishCounter ?? 0;
                     gameState.currentLocationKey = data.currentLocationKey || 'lake';
+                    gameState.gold = data.gold ?? 0;
                     console.log('Loaded gameState:', gameState);
                 } else {
                     console.log("No saved game found for user.");
@@ -49,24 +56,32 @@ export class Loading extends Phaser.Scene {
     create() {
     this.add.text(640, 50, 'Sign-up or log-in to continue', {
             fontSize: '28px',
-            color: '#ffffff'
+            color: '#ffffff',
+            //fontFamily:'MicroFont',
         }).setOrigin(0.5);
 
     //email input
-    this.add.text(100,100,"Email:").setColor('#ffffff');
+    this.add.text(100,100,"Email:",{
+        //fontFamily:'MicroFont',
+        }).setColor('#ffffff');
     const emailInput = this.add.dom(250,100,'input', {
         type:'email',
         placeholder:'Enter your email',
         fontSize:'16px',
+        //fontFamily:'MicroFont',
         width:'200px'
     });
 
     //password input
-    this.add.text(100,140,"Password:").setColor('#ffffff');
+    this.add.text(100,140,"Password:", {
+        //fontFamily:'MicroFont',
+        }).setColor('#ffffff');
+
     const passwordInput = this.add.dom(250,140,'input', {
         type:'password',
         placeholder:'Enter your password',
         fontSize:'16px',
+        //fontFamily:'MicroFont',
         width:'200px'
     });
 
@@ -75,6 +90,7 @@ export class Loading extends Phaser.Scene {
         fontSize: '20px',
         color: '#ffffff',
         backgroundColor: '#000000',
+        //fontFamily:'MicroFont',
         padding: { x: 10, y: 5 }
     }).setOrigin(0.5).setInteractive();
 
@@ -84,9 +100,16 @@ export class Loading extends Phaser.Scene {
 
     try {
         const userCredential = await auth.signInWithEmailAndPassword(email, password);
-        console.log("Login successful:",userCredential.user.uid);
+        const user = userCredential.user;
+
+        gameState.user = {
+            uid: user.uid,
+            email: user.email,
+            username: user.username
+        };
 
         await loadGameState();
+        console.log("Login successful:", gameState.user);
 
         this.scene.start('Start');
     } catch(error) {
@@ -100,6 +123,7 @@ export class Loading extends Phaser.Scene {
         fontSize: '20px',
         color: '#ffffff',
         backgroundColor: '#000000',
+        //fontFamily:'MicroFont',
         padding: { x: 10, y: 5 }
     }).setOrigin(0.5).setInteractive();
 
@@ -110,22 +134,99 @@ export class Loading extends Phaser.Scene {
          try {
             const userCredential = await auth.createUserWithEmailAndPassword(email, password);
             const uid = userCredential.user.uid;
-            console.log("Sign-up successful:", uid);
+            const user = userCredential.user;
+            gameState.user = {
+                uid: user.uid,
+                email: user.email,
+                username: null, //temp null until set
+            };
 
-            // Optional: Initialize save doc in Firestore
+            // Disable the main inputs and buttons
+            emailInput.node.disabled = true;
+            passwordInput.node.disabled = true;
+            loginButton.disableInteractive();
+            signUpButton.disableInteractive();
+            devLoginButton.disableInteractive();
+
+            // Create overlay background (semi-transparent black)
+            const overlay = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.7).setDepth(10);
+
+            // Create modal background box
+            const modal = this.add.rectangle(640, 360, 400, 200, 0x222222, 1).setDepth(11).setStrokeStyle(2, 0xffffff);
+
+            // Add modal prompt text
+            const promptText = this.add.text(640, 300, "Enter your username:", {
+                fontSize: '24px',
+                color: '#ffffff'
+            }).setOrigin(0.5).setDepth(11);
+
+            // Create DOM input for username
+            const usernameInput = this.add.dom(640, 360, 'input', {
+                type: 'text',
+                fontSize: '20px',
+                padding: '8px',
+                width: '280px'
+            }).setDepth(11);
+
+            // Create submit button
+            const submitBtn = this.add.text(640, 410, 'Submit', {
+                fontSize: '22px',
+                backgroundColor: '#008800',
+                color: '#ffffff',
+                padding: { x: 20, y: 10 },
+                align: 'center',
+            }).setOrigin(0.5).setDepth(11).setInteractive();
+
+            submitBtn.on('pointerdown', async () => {
+                let username = usernameInput.node.value.trim();
+                if (username.length === 0) {
+                    // Optional: Add a little shake or message
+                    promptText.setText("Username can't be empty!");
+                    return;
+                }
+
+            // Save initial user data with username to Firestore
             await db.collection('saves').doc(uid).set({
                 xp: 0,
                 fish: [],
                 fishCounter: 0,
                 currentLocationKey: 'lake',
+                username: username,
                 timestamp: Date.now()
             });
 
+            gameState.user.username = username;
+
+            console.log("Sign-up successful:", uid);
+
+            // Clean up modal elements
+            overlay.destroy();
+            modal.destroy();
+            promptText.destroy();
+            usernameInput.destroy();
+            submitBtn.destroy();
+
+            // Re-enable main UI inputs/buttons
+            emailInput.node.disabled = false;
+            passwordInput.node.disabled = false;
+            loginButton.setInteractive();
+            signUpButton.setInteractive();
+            devLoginButton.setInteractive();
+
+            // Now load saved state and start scene
             await loadGameState();
             this.scene.start('Start');
+            });
         } catch (error) {
             console.error("Sign-up failed:", error);
             alert(error.message);
+
+            // Re-enable inputs in case of failure
+            emailInput.node.disabled = false;
+            passwordInput.node.disabled = false;
+            loginButton.setInteractive();
+            signUpButton.setInteractive();
+            devLoginButton.setInteractive();
         }
         });
 
@@ -143,6 +244,13 @@ export class Loading extends Phaser.Scene {
 
             try {
                 const userCredential = await auth.signInWithEmailAndPassword(devEmail, devPassword);
+                const user = userCredential.user;
+                gameState.user = {
+                    uid: user.uid,
+                    email: user.email,
+                    username: null
+                };
+
                 console.log("Dev login successful:", userCredential.user.uid);
 
                 await loadGameState();

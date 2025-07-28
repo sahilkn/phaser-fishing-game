@@ -10,22 +10,24 @@ export class Inventory extends Phaser.Scene {
         // Default sort method
         this.sortMethod = 'id'; // fallback option
 
-        this.add.rectangle(640, 360, 1280, 720, 0x223344); // cozy background
+        const { width, height } = this.scale;
+        this.add.rectangle(width/2, height/2, width, height, 0x223344); // cozy background
 
         this.createDropdown();
 
         this.renderInventory();
 
             // Back Button
-            const backButton = this.add.text(30, 660, '← Back', {
+            const backButton = this.add.text(30, height - 40, '← Back', {
                 fontSize: '24px',
+                //fontFamily:'MicroFont', 
                 color: '#ffffff',
                 backgroundColor: '#000000',
                 padding: { x: 10, y: 5 }
             }).setInteractive();
 
             backButton.on('pointerdown', () => {
-                this.scene.start('Locations');
+                this.scene.start('Start');
             });
         }
 
@@ -55,7 +57,15 @@ export class Inventory extends Phaser.Scene {
             const padding = 20;
             const cols = 5;
             const spacing = 140;
+            const baseTankSize = 140;
+            const tankWidth = baseTankSize * 0.9;
+            const tankHeight = baseTankSize * 0.9;
+
+            const textHeight = 20;
+            const verticalPadding = 40;
+
             const totalSpacing = gameWidth - padding * 2;
+            const rowSpacing = tankHeight + textHeight + verticalPadding;
             const colSpacing = totalSpacing / cols;
             let row = 0;
 
@@ -66,29 +76,34 @@ export class Inventory extends Phaser.Scene {
                 if (!this.textures.exists(fish.key)) {
                     generateFishSprite(this, fish);
                 }
-
-                const tankWidth = spacing * 0.9;
-                const tankHeight = spacing * 0.9;
+                
                 const centerX = padding + col * colSpacing + colSpacing / 2;
-                const centerY = padding + row * spacing + tankHeight / 2;
+                const centerY = padding + row * rowSpacing + tankHeight / 2;
 
                 const tank = this.add.rectangle(centerX, centerY, tankWidth, tankHeight, 0x0000ff, 0.3);
+                tank.setOrigin(0.5);
                 scrollContainer.add(tank);
 
-                const sprite = this.add.image(centerX, centerY, fish.key);
+                const sprite = this.add.image(centerX, centerY, fish.key).setOrigin(0.5);
+                const spriteScale = Math.min(tankWidth / sprite.width, tankHeight / sprite.height) * 0.8;
+                sprite.setScale(spriteScale);
                 scrollContainer.add(sprite);
 
-                const nameText = this.add.text(centerX, centerY + tankHeight / 2 - 10, fish.name || fish.fishType, {
-                    fontSize: '16px',
+                const name = fish.name || 'Unnamed';
+                const type = fish.fishType || 'Unknown Type';
+
+                const nameText = this.add.text(centerX, centerY + tankHeight / 2 + 4, `${name}\n${type}`, {
+                    fontSize: '20px',
                     color: '#ffffff',
-                    fontFamily: 'Arial'
+                    align: 'center',
                 }).setOrigin(0.5, 0);
+
                 scrollContainer.add(nameText);
             });
 
             // Update scroll boundaries
             const viewportHeight = this.cameras.main.height;
-            const contentHeight = (row + 1) * spacing + padding;
+            const contentHeight = (row + 1) * rowSpacing + padding;
 
             this.minScrollY = Math.min(viewportHeight - contentHeight, 0);
             this.maxScrollY = 0;
@@ -143,7 +158,8 @@ export class Inventory extends Phaser.Scene {
             // Dropdown background box
         const dropdownBg = this.add.rectangle(1040, 20, 200, 40, 0x000000, 0.8).setOrigin(0, 0).setInteractive();
         const dropdownText = this.add.text(1050, 30, 'Sort: ID ▼', {
-            fontSize: '18px',
+            fontSize: '24px',
+            //fontFamily:'MicroFont', 
             color: '#ffffff'
         }).setOrigin(0, 0.5);
 
@@ -164,7 +180,8 @@ export class Inventory extends Phaser.Scene {
         // Create option texts (hidden by default)
         options.forEach((label, i) => {
             const opt = this.add.text(1050, 70 + i * 30, label, {
-                fontSize: '16px',
+                fontSize: '24px',
+                //fontFamily:'MicroFont', 
                 color: '#ffffff',
                 backgroundColor: '#333333',
                 padding: { x: 6, y: 2 }

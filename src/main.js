@@ -1,3 +1,4 @@
+import { Boot } from './scenes/Boot.js';
 import { Loading } from './scenes/Loading.js';
 import { Start } from './scenes/Start.js';
 import { Fishing } from './scenes/Fishing.js';
@@ -12,11 +13,19 @@ const config = {
     title: 'Fishing Game',
     description: '',
     parent: 'game-container',
+    physics: {
+        default: 'arcade',
+        arcade: {
+            gravity: { y: 0 },
+            debug: false // set to true to see collision boxes
+        }
+    },
     width: window.innerWidth,
     height: window.innerHeight,
     backgroundColor: '#000000',
     pixelArt: true,
     scene: [
+        Boot,
         Loading,
         Start,
         Fishing,

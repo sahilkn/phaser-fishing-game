@@ -7,11 +7,13 @@ export class Aquarium extends Phaser.Scene {
     }
 
     create() {
-        this.add.rectangle(640, 360, 1280, 720, 0x112233); // dark tank background
+        const { width, height } = this.scale;
+        this.add.rectangle(width/2, height/2, width, height, 0x112233); // dark tank background
 
         // Tooltip text (initially hidden)
         this.tooltip = this.add.text(0, 0, '', {
             fontSize: '18px',
+            //fontFamily:'MicroFont',
             color: '#ffffff',
             backgroundColor: '#000000',
             padding: { x: 8, y: 4 }
@@ -22,11 +24,11 @@ export class Aquarium extends Phaser.Scene {
             // If texture doesn't exist yet, generate it
             if (!this.textures.exists(fishData.key)) {
                 generateFishSprite(this,fishData);
-                //this.generateFishSprite(fishData);
             }
 
-            const x = Phaser.Math.Between(100, 1180);
-            const y = Phaser.Math.Between(100, 620);
+            const padding = 50;
+            const x = Phaser.Math.Between(padding, width - padding);
+            const y = Phaser.Math.Between(padding, height - padding);
 
             const fish = this.add.image(x, y, fishData.key);
             fish.setScale(Phaser.Math.FloatBetween(0.5, 1));
@@ -35,7 +37,10 @@ export class Aquarium extends Phaser.Scene {
 
             // Hover events
             fish.on('pointerover', (pointer) => {
-                this.tooltip.setText(fishData.name || fishData.fishType);
+                const name = fishData.name || 'Unnamed Fish';
+                const type = fishData.fishType || 'Unknown Type';
+                this.tooltip.setText(`${name}\nSpecies: ${type}`);
+
                 this.tooltip.setPosition(pointer.x + 10, pointer.y + 10);
                 this.tooltip.setVisible(true);
             });
@@ -52,7 +57,7 @@ export class Aquarium extends Phaser.Scene {
         });
 
         // Back Button
-        const backButton = this.add.text(30, 660, '← Back', {
+        const backButton = this.add.text(30, height - 40, '← Back', {
             fontSize: '24px',
             color: '#ffffff',
             backgroundColor: '#000000',
@@ -60,17 +65,19 @@ export class Aquarium extends Phaser.Scene {
         }).setInteractive();
 
         backButton.on('pointerdown', () => {
-            this.scene.start('Locations');
+            this.scene.start('Start');
         });
         }
 
     animateFish(fish) {
-    const aquariumBounds = {
-        xMin: 50,
-        xMax: 1230,
-        yMin: 50,
-        yMax: 670
-    };
+
+        const padding = 50;
+        const aquariumBounds = {
+            xMin: padding,
+            xMax: this.scale.width - padding,
+            yMin: padding,
+            yMax: this.scale.height - padding
+        };
 
     const swimToNewPosition = () => {
         const targetX = Phaser.Math.Between(aquariumBounds.xMin, aquariumBounds.xMax);
@@ -122,47 +129,4 @@ export class Aquarium extends Phaser.Scene {
     swimToNewPosition();
 }
 
-
-    // generateFishSprite(fish) {
-    //     const { 
-    //         key, 
-    //         width, 
-    //         height, 
-    //         bodyColor, 
-    //         tailColor, 
-    //         hasStripes,
-    //         stripeColor,
-    //         stripePositions 
-    //     } = fish;
-    //     if (this.textures.exists(key)) {
-    //         this.textures.remove(key);
-    //     }
-
-    //     const canvasTexture = this.textures.createCanvas(key, width, height);
-    //     const ctx = canvasTexture.getContext();
-
-    //     ctx.fillStyle = `rgb(${bodyColor.r}, ${bodyColor.g}, ${bodyColor.b})`;
-    //     ctx.fillRect(0, height / 4, width, height / 2);
-
-    //     const tailWidth = width / 4;
-    //     ctx.fillStyle = `rgb(${tailColor.r}, ${tailColor.g}, ${tailColor.b})`;
-    //     ctx.beginPath();
-    //     ctx.moveTo(0, height / 2);
-    //     ctx.lineTo(tailWidth, height / 4);
-    //     ctx.lineTo(tailWidth, (3 * height) / 4);
-    //     ctx.closePath();
-    //     ctx.fill();
-
-    //     ctx.fillStyle = "#000000";
-    //     ctx.fillRect(width - 6, height / 2 - 2, 4, 4);
-
-    //     if (hasStripes && stripeColor && stripePositions.length > 0) {
-    //         ctx.fillStyle = `rgb(${stripeColor.r}, ${stripeColor.g}, ${stripeColor.b})`;
-    //         stripePositions.forEach(stripeX => {
-    //             ctx.fillRect(stripeX,height/4,2,height/2);
-    //         });
-    //     }
-
-    //     canvasTexture.refresh();
-    // }
 }
